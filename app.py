@@ -1,13 +1,13 @@
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from module.binance_p2p import binance_p2p
+from module.binance_p2p import P2PBinance
 
 def thongke_job_sync():
     #df = binance_p2p().thongke_today()
     print("DONE")
 
 def transactions_trading_sync():
-    binance_p2p().transactions_trading()
+    P2PBinance().transactions_trading()
 
 async def main():
     loop = asyncio.get_running_loop()

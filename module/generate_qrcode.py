@@ -98,6 +98,35 @@ def find_best_match(query, choices):
     except Exception as e:
         logger.error(f"Error finding best match: {e}")
         return None
-    
+
+def get_bank_bin(bank_name: str) -> str:
+    """
+    Lấy mã BIN của ngân hàng từ tên ngân hàng
+    Args:
+        bank_name (str): Tên ngân hàng (có thể là tên đầy đủ hoặc tên viết tắt)
+    Returns:
+        str: Mã BIN của ngân hàng, nếu không tìm thấy trả về None
+    """
+    try:
+        # Đọc file bank_list.json
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        bank_list_path = os.path.join(os.path.dirname(current_dir), "bank_list.json")
+        
+        with open(bank_list_path, 'r', encoding='utf-8') as f:
+            banks = json.load(f)
+        
+        # Tìm kiếm ngân hàng theo tên
+        bank_name = bank_name.upper()
+        for bank_code, bank_info in banks.items():
+            if (bank_name in bank_code.upper() or 
+                bank_name in bank_info['name'].upper() or 
+                bank_name in bank_info['short_name'].upper()):
+                return bank_info['bin']
+        
+        return None
+    except Exception as e:
+        print(f"Lỗi khi lấy mã BIN ngân hàng: {e}")
+        return None
+
 if __name__ == '__main__':
     print(get_nganhang_id("Vietinbank ( Chau Duc Lam )"))

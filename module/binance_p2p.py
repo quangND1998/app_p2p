@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime
-from binance import Client
+from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from config_env import BINANCE_KEY, BINANCE_SECRET
 from module.generate_qrcode import generate_vietqr,get_nganhang_id
@@ -9,83 +9,238 @@ from module.generate_qrcode import generate_vietqr,get_nganhang_id
 from module.discord_send_message import DiscordBot
 from module.selenium_get_info import extract_order_info,extract_info_by_key
 import pandas as pd
+from module.transaction_storage import TransactionStorage
+from dotenv import load_dotenv
+import os
+
+# Load biến môi trường
+load_dotenv()
+BINANCE_KEY = os.getenv("BINANCE_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET")
 
 logging.basicConfig(format='%(asctime)s  %(name)s  %(levelname)s: %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class binance_p2p:
-    def __init__(self):
-        self.client = Client(BINANCE_KEY, BINANCE_SECRET)
-        # self.telegram_bot = TelegramBot(token=None)  # Initialize the Telegram bot with the token from config_env
-        self.discord_bot = DiscordBot(webhook_url=None)
+class P2PBinance:
+    def __init__(self, storage_dir: str = "transactions"):
+        """
+        Khởi tạo P2PBinance
+        Args:
+            storage_dir: Thư mục lưu trữ dữ liệu giao dịch
+        """
         self._stop_flag = False
+        self._running = False
+        self.current_transaction = None
         self.logger = logging.getLogger("P2P")
+        self.storage = TransactionStorage(storage_dir)
+        
+        # Khởi tạo Binance client
+        try:
+            self.logger.info(f"Initializing Binance client with key: {BINANCE_KEY[:5]}...")
+            self.client = Client(BINANCE_KEY, BINANCE_SECRET)
+            self.logger.info("Binance client initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Binance client: {e}")
+            raise
+
+    def handle_buy_order(self, order_number, message):
+        """Xử lý đơn hàng mua"""
+        infor_seller = extract_order_info(order_number)
+        message = ''.join(f"{k}: {v}\n" for k, v in infor_seller.items())
+        
+        infor_seller = extract_info_by_key(infor_seller)
+        self.logger.debug(f'Extracted Info: {infor_seller}')
+        
+        fiat_amount = infor_seller.get("Fiat amount")
+        full_name = infor_seller.get("Full Name")
+        bank_card = infor_seller.get("Bank Card")
+        bank_name = infor_seller.get("Bank Name")
+        reference_message = infor_seller.get("Reference message")
+
+        # Tạo thông tin giao dịch
+        transaction_info = {
+            'type': 'buy',
+            'order_number': order_number,
+            'amount': fiat_amount,
+            'bank_name': bank_name,
+            'account_number': bank_card,
+            'account_name': full_name,
+            'reference': reference_message,
+            'message': message
+        }
+
+        if all([fiat_amount, bank_card, bank_name, reference_message, full_name]):
+            acqid_bank = get_nganhang_id(bank_name)
+            qr_image = generate_vietqr(
+                accountno=bank_card,
+                accountname=full_name,
+                acqid=acqid_bank,
+                addInfo=reference_message,
+                amount=fiat_amount,
+                template="rc9Vk60"
+            )
+            
+            # Lưu thông tin giao dịch và mã QR
+            qr_path = self.storage.save_transaction(transaction_info, qr_image)
+            self.logger.info(f"Saved QR code to: {qr_path}")
+            
+            # Cập nhật thông tin giao dịch hiện tại
+            self.current_transaction = transaction_info
+            self.current_transaction['qr_path'] = qr_path
+
+    def handle_sell_order(self, order_number, fiat_amount, message):
+        """Xử lý đơn hàng bán"""
+        qr_image = generate_vietqr(
+            addInfo=order_number,
+            amount=fiat_amount,
+            template="rc9Vk60"
+        )
+        
+        # Tạo thông tin giao dịch
+        transaction_info = {
+            'type': 'sell',
+            'order_number': order_number,
+            'amount': fiat_amount,
+            'message': message
+        }
+        
+        # Lưu thông tin giao dịch và mã QR
+        qr_path = self.storage.save_transaction(transaction_info, qr_image)
+        self.logger.info(f"Saved QR code to: {qr_path}")
+        
+        # Cập nhật thông tin giao dịch hiện tại
+        self.current_transaction = transaction_info
+        self.current_transaction['qr_path'] = qr_path
+
+    def get_recent_transactions(self, limit: int = 10) -> list:
+        """Lấy danh sách giao dịch gần đây"""
+        return self.storage.get_recent_transactions(limit)
+
+    def get_transaction(self, order_number: str) -> dict:
+        """Lấy thông tin giao dịch theo mã đơn hàng"""
+        return self.storage.get_transaction(order_number)
+
+    def get_transactions_by_date(self, start_date: str, end_date: str) -> list:
+        """Lấy danh sách giao dịch trong khoảng thời gian"""
+        return self.storage.get_transactions_by_date(start_date, end_date)
+
+    def transactions_trading(self):
+        self.logger.info("🚀 Bắt đầu chạy giao dịch P2P")
+        status = {
+            "COMPLETED": "COMPLETED",
+            "PENDING": "PENDING",
+            "TRADING": "TRADING",
+            "BUYER_PAYED": "BUYER PAYED",
+            "DISTRIBUTING": "DISTRIBUTING",
+            "IN_APPEAL": "IN APPEAL",
+            "CANCELLED": "CANCELLED",
+            "CANCELLED_BY_SYSTEM": "CANCELLED BY SYSTEM"
+        }
+        side = {"BUY": "BUY", "SELL": "SELL"}
+        used_orders = {}
+        err_count = 0
+        link = "https://p2p.binance.com/en/fiatOrderDetail?orderNo="
+
+        self.logger.info('Bot Started P2P Order Tracking for Last 45 Minutes Only.')
+        self.startup_update(used_orders)
+
+        while not self._stop_flag:
+            try:
+                for trade_type in ["BUY", "SELL"]:
+                    end = int(datetime.utcnow().timestamp() * 1000)
+                    start = end - 2700000  # ~45 minutes
+                    self.logger.debug(f'Start timestamp: {start}, End timestamp: {end}')
+
+                    result = self.get_c2c_trade_history(tradeType=trade_type, startDate=start, endDate=end)
+                    self.logger.debug(f'Trade History Result: {result}')
+
+                    for order in result['data']:
+                        order_status = order['orderStatus']
+                        order_number = order['orderNumber']
+                        previous_status = used_orders.get(order_number)
+
+                        is_new_order = previous_status is None
+                        is_status_changed = previous_status != order_status
+
+                        if is_new_order or is_status_changed:
+                            self.logger.info(f"New Update:- Order No.: {order_number} | Status: {order_status}")
+
+                            message = (
+                                f"Status: {status.get(order_status)}\n"
+                                f"Type: {side.get(order['tradeType'])}\n"
+                                f"Price: {order['fiatSymbol']}{order['unitPrice']}\n"
+                                f"Fiat Amount: {float(order['totalPrice'])} {order['fiat']}\n"
+                                f"Crypto Amount: {float(order['amount'])} {order['asset']}\n"
+                                f"Order No.: {order_number}"
+                            )
+
+                            used_orders[order_number] = order_status
+                            
+                            # Gửi thông báo trạng thái giao dịch
+                            self._send_notification(message)
+
+                            if order_status == "TRADING":
+                                if trade_type == "BUY":
+                                    self.handle_buy_order(order_number, message)
+                                elif trade_type == "SELL":
+                                    self.handle_sell_order(order_number, float(order['totalPrice']), message)
+                                    
+                time.sleep(1)
+
+            except Exception as e:
+                self.logger.error(f'{e}', exc_info=True)
+                err_count += 1
+
+                if err_count > 3:
+                    self._running = False
+                    self.logger.warning(f"Error Count is {err_count}. Bot Stopped.")
+                    self._send_notification(f"Error Count is {err_count}. Bot Stopped.")
 
     def stop(self):
         self._stop_flag = True
         logger.info("🛑 Yêu cầu dừng Binance P2P...")
 
     def get_c2c_trade_history(self, tradeType, startDate=None, endDate=None):
-        return self.client.get_c2c_trade_history(tradeType=tradeType, startDate=startDate, endDate=endDate)
-    
+        """Lấy lịch sử giao dịch C2C"""
+        try:
+            return self.client.get_c2c_trade_history(
+                tradeType=tradeType,
+                startDate=startDate,
+                endDate=endDate
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting C2C trade history: {e}")
+            raise
+
     def get_all_c2c_trades(self, start_timestamp=None, end_timestamp=None):
-        rows = 100
-        all_trades = []
-
-        if start_timestamp:
-            start_timestamp = int(start_timestamp)
-        if end_timestamp:
-            end_timestamp = int(end_timestamp)
-
-        for trade_type in ["BUY", "SELL"]:
-            page = 1
-            while True:
-                params = {
-                    "tradeType": trade_type,
-                    "page": page,
-                    "rows": rows
-                }
-                if start_timestamp:
-                    params["startTimestamp"] = start_timestamp
-                if end_timestamp:
-                    params["endTimestamp"] = end_timestamp
-                print(params)
-                try:
-                    result = self.client.get_c2c_trade_history(**params)
-                except BinanceAPIException as e:
-                    print(f"[Lỗi API] {e.message}")
-                    break
-
-                trades = result.get("data", [])
-                all_trades.extend(trades)
-
-                if not trades:
-                    print(f"[{trade_type}] Hết dữ liệu tại trang {page}")
-                    break
-
-                if page >= 100:
-                    print(f"[{trade_type}] Vượt quá giới hạn trang (100)")
-                    break
-
-                page += 1
-        if not all_trades:
-            print("Không có giao dịch nào.")
-            return pd.DataFrame()
-        print(all_trades)
-        df = pd.json_normalize(all_trades)
-        df = df[df['orderStatus'] == "COMPLETED"]
-        df["createTime"] = pd.to_datetime(df["createTime"], unit="ms")
-        df["createDay"] = df["createTime"].dt.date
-        # Chuyển đổi kiểu dữ liệu
-        df["totalPrice"] = pd.to_numeric(df["totalPrice"], errors="coerce")
-        df["commission"] = pd.to_numeric(df["commission"], errors="coerce")
-        df["takerCommission"] = pd.to_numeric(df["takerCommission"], errors="coerce")
-        df_grouped = df.groupby(["createDay", "tradeType", "orderStatus"]).agg(
-                                                                                totalPrice_sum=("totalPrice", "sum"),
-                                                                                commission_sum=("commission", "sum"),
-                                                                                takercommission_sum=("takerCommission", "sum")
-                                                                                ).reset_index()
-        return df_grouped
+        """Lấy tất cả giao dịch C2C trong khoảng thời gian"""
+        try:
+            # Lấy giao dịch BUY
+            buy_trades = self.get_c2c_trade_history(
+                tradeType="BUY",
+                startDate=start_timestamp,
+                endDate=end_timestamp
+            )
+            
+            # Lấy giao dịch SELL
+            sell_trades = self.get_c2c_trade_history(
+                tradeType="SELL",
+                startDate=start_timestamp,
+                endDate=end_timestamp
+            )
+            
+            # Kết hợp cả hai loại giao dịch
+            all_trades = []
+            if buy_trades and 'data' in buy_trades:
+                all_trades.extend(buy_trades['data'])
+            if sell_trades and 'data' in sell_trades:
+                all_trades.extend(sell_trades['data'])
+                
+            return all_trades
+            
+        except Exception as e:
+            self.logger.error(f"Error getting all C2C trades: {e}")
+            raise
     
     def thongke_today(self):
         all_data = []
@@ -125,128 +280,5 @@ class binance_p2p:
             logger.debug(f'Startup Trade History Result: {res}')
             for k in res['data']:
                 database[k['orderNumber']] = k['orderStatus']
-
-    def handle_buy_order(self, order_number, message):
-        infor_seller = extract_order_info(order_number)
-        message = ''.join(f"{k}: {v}\n" for k, v in infor_seller.items())
-        # self.telegram_bot.send_message(
-        #     f"""<b>🔔 [Thông báo]!</b>
-        #         <b>Thông tin người bán:</b>
-        #         {message}
-        #         <b>Đối chiếu với QR code bên dưới!</b>""",
-        #             parse_mode="HTML"
-        #         )
-        self.discord_bot.send_message(
-            f"""**🔔 [Thông báo]!**
-                **Thông tin người bán:**
-                {message}
-                **Đối chiếu với QR code bên dưới!**"""
-                )
-        infor_seller = extract_info_by_key(infor_seller)
-        
-        logger.debug(f'Extracted Info: {infor_seller}')
-        
-        fiat_amount = infor_seller.get("Fiat amount")
-        full_name = infor_seller.get("Full Name")
-        bank_card = infor_seller.get("Bank Card")
-        bank_name = infor_seller.get("Bank Name")
-        reference_message = infor_seller.get("Reference message")
-
-        if all([fiat_amount, bank_card, bank_name, reference_message, full_name]):
-            acqid_bank = get_nganhang_id(bank_name)
-            image = generate_vietqr(
-                accountno=bank_card,
-                accountname=full_name,
-                acqid=acqid_bank,
-                addInfo=reference_message,
-                amount=fiat_amount,
-                template="rc9Vk60"
-            )
-            # self.telegram_bot.send_photo(image, message)
-            self.discord_bot.send_photo(image, message)
-            
-
-
-    def handle_sell_order(self, order_number, fiat_amount, message):
-        image = generate_vietqr(
-            addInfo=order_number,
-            amount=fiat_amount,
-            template="rc9Vk60"
-        )
-        # self.telegram_bot.send_photo(image, message)
-        self.discord_bot.send_photo(image, message)
-
-    
-    def transactions_trading(self):
-        self.logger.info("🚀 Bắt đầu chạy giao dịch P2P")
-        status = {
-            "COMPLETED": "COMPLETED",
-            "PENDING": "PENDING",
-            "TRADING": "TRADING",
-            "BUYER_PAYED": "BUYER PAYED",
-            "DISTRIBUTING": "DISTRIBUTING",
-            "IN_APPEAL": "IN APPEAL",
-            "CANCELLED": "CANCELLED",
-            "CANCELLED_BY_SYSTEM": "CANCELLED BY SYSTEM"
-        }
-        side = {"BUY": "BUY", "SELL": "SELL"}
-        used_orders = {}
-        err_count = 0
-        link = "https://p2p.binance.com/en/fiatOrderDetail?orderNo="
-
-        logger.info('Bot Started P2P Order Tracking for Last 45 Minutes Only.')
-        self.startup_update(used_orders)
-
-        while not self._stop_flag:
-            try:
-                for trade_type in ["BUY", "SELL"]:
-                    end = int(datetime.utcnow().timestamp() * 1000)
-                    start = end - 2700000  # ~45 minutes
-                    logger.debug(f'Start timestamp: {start}, End timestamp: {end}')
-
-                    result = self.get_c2c_trade_history(tradeType=trade_type, startDate=start, endDate=end)
-                    logger.debug(f'Trade History Result: {result}')
-
-                    for order in result['data']:
-                        order_status = order['orderStatus']
-                        order_number = order['orderNumber']
-                        previous_status = used_orders.get(order_number)
-
-                        is_new_order = previous_status is None
-                        is_status_changed = previous_status != order_status
-
-                        if is_new_order or is_status_changed:
-                            logger.info(f"New Update:- Order No.: {order_number} | Status: {order_status}")
-
-                            message = (
-                                f"Status: {status.get(order_status)}\n"
-                                f"Type: {side.get(order['tradeType'])}\n"
-                                f"Price: {order['fiatSymbol']}{order['unitPrice']}\n"
-                                f"Fiat Amount: {float(order['totalPrice'])} {order['fiat']}\n"
-                                f"Crypto Amount: {float(order['amount'])} {order['asset']}\n"
-                                f"Order No.: <a href='{link}{order_number}'>{order_number}</a>"
-                            )
-
-                            used_orders[order_number] = order_status
-                            logger.info("SENDING TO TELEGRAM")
-                            # self.telegram_bot.send_message(message)
-                            self.discord_bot.send_message(message)
-
-                            if order_status == "TRADING":
-                                if trade_type == "BUY":
-                                    self.handle_buy_order(order_number, message)
-                                elif trade_type == "SELL":
-                                    self.handle_sell_order(order_number, float(order['totalPrice']), message)
-                time.sleep(1)
-
-            except Exception as e:
-                logger.error(f'{e}', exc_info=True)
-                err_count += 1
-
-                if err_count > 3:
-                    self._running = False
-                    logger.warning(f"Error Count is {err_count}. Bot Stopped.")
-                    # self.telegram_bot.send_message(f"Error Count is {err_count}. Bot Stopped.")
-                    self.discord_bot.send_message(f"Error Count is {err_count}. Bot Stopped.")
 
 

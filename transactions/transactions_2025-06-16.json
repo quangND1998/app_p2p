@@ -1,0 +1,15 @@
+[
+  {
+    "type": "buy",
+    "order_number": "TEST123",
+    "amount": 1000000,
+    "bank_name": "Vietcombank",
+    "account_number": "1234567890",
+    "account_name": "Test User",
+    "reference": "TEST_REF",
+    "message": "Test transaction",
+    "acq_id": "970436",
+    "timestamp": 1750048058.022189,
+    "qr_path": "C:\\Users\\Admin\\Downloads\\app_p2p\\app_p2p\\app_p2p\\test_transactions\\qr_codes\\buy_20250616_112738_TEST123.png"
+  }
+]
