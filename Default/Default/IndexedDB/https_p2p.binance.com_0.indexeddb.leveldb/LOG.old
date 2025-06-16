@@ -1,0 +1,23 @@
+2025/06/08-10:42:00.443 2a58 Reusing MANIFEST D:\app_p2p\app_p2p\Default\Default\IndexedDB\https_p2p.binance.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/06/08-10:42:00.444 2a58 Recovering log #301
+2025/06/08-10:42:00.445 2a58 Reusing old log D:\app_p2p\app_p2p\Default\Default\IndexedDB\https_p2p.binance.com_0.indexeddb.leveldb/000301.log 
+2025/06/08-10:42:00.445 2a58 Delete type=2 #300
+2025/06/08-10:42:08.858 2a58 Level-0 table #306: started
+2025/06/08-10:42:08.865 2a58 Level-0 table #306: 99702 bytes OK
+2025/06/08-10:42:08.867 2a58 Delete type=0 #301
+2025/06/08-10:42:08.868 2a58 Manual compaction at level-0 from (begin) .. (end); will stop at '\x00\x0a\x01\x02\x010\x00s\x00t\x00r\x00a\x00t\x00e\x00g\x00y\x00-\x00c\x00o\x00n\x00f\x00i\x00g\x00-\x00c\x005\x006\x00d\x00c\x008\x00c\x00d\x006\x005\x008\x00e\x004\x001\x009\x005\x00c\x009\x00c\x005\x006\x004\x002\x007\x00f\x00b\x00e\x00b\x009\x00e\x00a\x001' @ 42343 : 1
+2025/06/08-10:42:08.868 2a58 Compacting 1@0 + 1@1 files
+2025/06/08-10:42:08.871 2a58 Generated table #307@0: 786 keys, 15697 bytes
+2025/06/08-10:42:08.871 2a58 Compacted 1@0 + 1@1 files => 15697 bytes
+2025/06/08-10:42:08.872 2a58 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/06/08-10:42:08.873 2a58 Delete type=2 #303
+2025/06/08-10:42:08.873 2a58 Delete type=2 #306
+2025/06/08-10:42:08.873 2a58 Manual compaction at level-0 from '\x00\x0a\x01\x02\x010\x00s\x00t\x00r\x00a\x00t\x00e\x00g\x00y\x00-\x00c\x00o\x00n\x00f\x00i\x00g\x00-\x00c\x005\x006\x00d\x00c\x008\x00c\x00d\x006\x005\x008\x00e\x004\x001\x009\x005\x00c\x009\x00c\x005\x006\x004\x002\x007\x00f\x00b\x00e\x00b\x009\x00e\x00a\x001' @ 42343 : 1 .. (end); will stop at (end)
+2025/06/08-10:42:08.873 2a58 Manual compaction at level-1 from (begin) .. (end); will stop at '\x00\x0a\x01\x02\x010\x00s\x00t\x00r\x00a\x00t\x00e\x00g\x00y\x00-\x00c\x00o\x00n\x00f\x00i\x00g\x00-\x00c\x005\x006\x00d\x00c\x008\x00c\x00d\x006\x005\x008\x00e\x004\x001\x009\x005\x00c\x009\x00c\x005\x006\x004\x002\x007\x00f\x00b\x00e\x00b\x009\x00e\x00a\x001' @ 42375 : 1
+2025/06/08-10:42:08.873 2a58 Compacting 1@1 + 1@2 files
+2025/06/08-10:42:08.876 2a58 Generated table #308@1: 364 keys, 47986 bytes
+2025/06/08-10:42:08.876 2a58 Compacted 1@1 + 1@2 files => 47986 bytes
+2025/06/08-10:42:08.878 2a58 compacted to: files[ 0 0 1 0 0 0 0 ]
+2025/06/08-10:42:08.878 2a58 Delete type=2 #284
+2025/06/08-10:42:08.878 2a58 Delete type=2 #307
+2025/06/08-10:42:08.879 2a58 Manual compaction at level-1 from '\x00\x0a\x01\x02\x010\x00s\x00t\x00r\x00a\x00t\x00e\x00g\x00y\x00-\x00c\x00o\x00n\x00f\x00i\x00g\x00-\x00c\x005\x006\x00d\x00c\x008\x00c\x00d\x006\x005\x008\x00e\x004\x001\x009\x005\x00c\x009\x00c\x005\x006\x004\x002\x007\x00f\x00b\x00e\x00b\x009\x00e\x00a\x001' @ 42375 : 1 .. (end); will stop at (end)
