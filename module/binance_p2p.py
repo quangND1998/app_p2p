@@ -221,7 +221,7 @@ class P2PBinance:
             try:
                 for trade_type in ["BUY", "SELL"]:
                     end = int(datetime.utcnow().timestamp() * 1000)
-                    start = end - 2700000  # ~45 minutes
+                    start = end - 7200000*2  # ~45 minutes
 
                     result = self.get_c2c_trade_history(
                         tradeType=trade_type, startDate=start, endDate=end
@@ -231,6 +231,13 @@ class P2PBinance:
                         order_status = order["orderStatus"]
                         order_number = order["orderNumber"]
                         previous_status = used_orders.get(order_number)
+                        self.logger.info(
+                            f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "
+                            f"Price: {order['fiatSymbol']}{order['unitPrice']} | "
+                            f"Fiat Amount: {order['totalPrice']} {order['fiat']} | "
+                            f"Crypto Amount: {order['amount']} {order['asset']} | "
+                            f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
+                        )
                         if order_status == "TRADING":
                             self.logger.info(
                                 f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "
@@ -239,9 +246,18 @@ class P2PBinance:
                                 f"Crypto Amount: {order['amount']} {order['asset']} | "
                                 f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
                             )
+                            # Log toàn bộ thông tin order
+                            # self.logger.info(f"📋 Toàn bộ thông tin order {order_number}:")
+                            # for key, value in order.items():
+                            #     self.logger.info(f"   {key}: {value}")
 
                         if previous_status is None or previous_status != order_status:
                             self.logger.info(f"🔄 Status thay đổi cho order {order_number}: {previous_status} -> {order_status}")
+                            
+                            # Log toàn bộ thông tin order khi có thay đổi status
+                            # self.logger.info(f"📋 Toàn bộ thông tin order {order_number} (Status: {order_status}):")
+                            # for key, value in order.items():
+                            #     self.logger.info(f"   {key}: {value}")
                             
                             message = (
                                 f"Status: {status.get(order_status)}\n"

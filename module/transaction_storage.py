@@ -70,12 +70,31 @@ class TransactionStorage:
                     f.write(qr_image)
                 transaction_info['qr_path'] = str(qr_path)
             
-            # Thêm vào danh sách và lưu lại
-            transactions.append(transaction_info)
+            # Kiểm tra xem order_number đã tồn tại chưa
+            order_number = transaction_info.get('order_number')
+            existing_index = None
+            
+            if order_number:
+                for i, existing_transaction in enumerate(transactions):
+                    if existing_transaction.get('order_number') == order_number:
+                        existing_index = i
+                        break
+            
+            if existing_index is not None:
+                # Cập nhật transaction hiện có
+                self.logger.info(f"🔄 Cập nhật transaction hiện có cho order {order_number}")
+                transactions[existing_index] = transaction_info
+            else:
+                # Thêm transaction mới
+                self.logger.info(f"➕ Thêm transaction mới cho order {order_number}")
+                transactions.append(transaction_info)
+            
+            # Lưu lại file
             with open(date_file, 'w', encoding='utf-8') as f:
                 json.dump(transactions, f, ensure_ascii=False, indent=2)
             
-            self.logger.info(f"Đã lưu giao dịch {transaction_info['order_number']} vào file {date_file}")
+            action = "cập nhật" if existing_index is not None else "lưu"
+            self.logger.info(f"Đã {action} giao dịch {order_number} vào file {date_file}")
             return transaction_info
             
         except Exception as e:
