@@ -1,7 +1,11 @@
+"""
+Module này được sử dụng để tự động hóa trình duyệt Chrome cho ứng dụng Binance P2P Trading.
+Mục đích: Tự động hóa các thao tác đăng nhập và lấy thông tin giao dịch từ Binance P2P.
+"""
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -11,58 +15,75 @@ import time
 import re
 import subprocess
 import sys
+import logging
+from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config_env import CHROME_DRIVE, CHROME_PATH
+from webdriver_manager.chrome import ChromeDriverManager
 
+# Thiết lập logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-profile_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Default")
+# Sử dụng Path để xử lý đường dẫn an toàn hơn
+BASE_DIR = Path(__file__).parent.parent
+PROFILE_PATH = BASE_DIR / "Default"
 
 def extract_info_by_key(data):
+    """Trích xuất thông tin từ dữ liệu giao dịch"""
     result = {}
     for key, value in data.items():
         key_lower = key.lower()
-
+        # Map các trường dữ liệu
         if re.search(r'fiat amount', key_lower):
             result['Fiat amount'] = value
-
         elif re.search(r'reference message', key_lower):
             result['Reference message'] = value
-
         elif re.search(r'^name$|full name', key_lower):
             result['Full Name'] = value
-
         elif re.search(r'bank card|account number', key_lower):
             result['Bank Card'] = value
-
         elif re.search(r'bank name', key_lower):
             result['Bank Name'] = value
-            
     return result
 
-def create_options(headless: bool = False,port=9222):
+def create_options(headless: bool = False, port: int = 9222) -> Options:
+    """Tạo Chrome options với các cài đặt an toàn"""
     chrome_options = Options()
-    # chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_argument(f'user-data-dir={profile_path}')
-    # chrome_options.add_argument('--disable-extensions')
-    # chrome_options.add_argument("--disable-dev-shm-usage")
-    # chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    # chrome_options.add_experimental_option('useAutomationExtension', False)
-    # chrome_options.add_argument('--no-sandbox')
+    
+    # Các tùy chọn cơ bản và bảo mật
+    chrome_options.add_argument(f'user-data-dir={str(PROFILE_PATH)}')
+    chrome_options.add_argument('--disable-extensions')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_argument('--disable-notifications')
+    chrome_options.add_argument('--disable-popup-blocking')
+    chrome_options.add_argument('--disable-infobars')
+    
+    # Cài đặt debug port
     chrome_options.debugger_address = f"127.0.0.1:{port}"
+    
+    # Cài đặt headless nếu cần
     if headless:
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--headless=new')
     else:
         chrome_options.add_argument('--window-size=600,400')
+    
     return chrome_options
 
-def create_driver(headless: bool = True):
-    return webdriver.Chrome(
+def create_driver(headless: bool = True) -> webdriver.Chrome:
+    """Tạo Chrome driver với các cài đặt an toàn"""
+    try:
+        return webdriver.Chrome(
             options=create_options(headless=headless),
-            #service=Service(f'{CHROME_DRIVE}')
             service=Service(ChromeDriverManager().install())
-)
- 
+        )
+    except Exception as e:
+        logger.error(f"Lỗi khi tạo driver: {e}")
+        raise
+
 def extract_order_info(order_no: str) -> dict:
     def parse_currency(vnd_str):
         try:
@@ -118,23 +139,39 @@ def extract_order_info(order_no: str) -> dict:
             driver.quit()
     return bank_info
 
-def launch_chrome_remote_debugging(port=9222):
-    chrome_path = f"{CHROME_PATH}"
-    user_data_dir = f"{profile_path}"
-    # Kiểm tra Chrome tồn tại
-    if not os.path.exists(chrome_path):
+def launch_chrome_remote_debugging(port: int = 9222) -> None:
+    """Khởi chạy Chrome với chế độ remote debugging"""
+    chrome_path = Path(CHROME_PATH)
+    if not chrome_path.exists():
         raise FileNotFoundError(f"Không tìm thấy Chrome tại: {chrome_path}")
+    
+    # Tạo command với các tham số an toàn
     command = [
-        chrome_path,
+        str(chrome_path),
         f"--remote-debugging-port={port}",
-        f'--user-data-dir={user_data_dir}',
+        f'--user-data-dir={str(PROFILE_PATH)}',
         "--no-first-run",
         "--no-default-browser-check",
-        "--new-window"
+        "--new-window",
+        "--disable-extensions",
+        "--disable-popup-blocking",
+        "--disable-notifications"
     ]
-    subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    time.sleep(3)
     
+    try:
+        # Sử dụng subprocess.Popen với các tham số an toàn
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW  # Ẩn console window
+        )
+        time.sleep(3)  # Đợi Chrome khởi động
+        logger.info("Chrome đã được khởi chạy thành công")
+    except Exception as e:
+        logger.error(f"Lỗi khi khởi chạy Chrome: {e}")
+        raise
+
 def login_app():
     driver = None
     bank_info = {}

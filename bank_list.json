@@ -222,7 +222,7 @@
     },
     "MSB": {
         "id": 22,
-        "name": "Ngân hàng TMCP Hàng Hải",
+        "name": "Ngân hàng TMCP Hàng Hải Việt Nam",
         "code": "MSB",
         "bin": "970426",
         "logo": "https://api.vietqr.io/img/MSB.png",
@@ -337,15 +337,15 @@
         "isTransfer": 1,
         "swift_code": "WBVNVNVX"
     },
-    "Oceanbank": {
+    "MBV": {
         "id": 27,
-        "name": "Ngân hàng Thương mại TNHH MTV Đại Dương",
-        "code": "Oceanbank",
+        "name": "Ngân hàng TNHH MTV Việt Nam Hiện Đại",
+        "code": "MBV",
         "bin": "970414",
-        "logo": "https://api.vietqr.io/img/OCEANBANK.png",
+        "logo": "https://api.vietqr.io/img/MBV.png",
         "transferSupported": 1,
         "lookupSupported": 1,
-        "short_name": "Oceanbank",
+        "short_name": "MBV",
         "support": 3,
         "isTransfer": 1,
         "swift_code": "OCBKUS3M"
@@ -417,7 +417,7 @@
     },
     "PGBank": {
         "id": 29,
-        "name": "Ngân hàng TMCP Xăng dầu Petrolimex",
+        "name": "Ngân hàng TMCP Thịnh vượng và Phát triển",
         "code": "PGB",
         "bin": "970430",
         "logo": "https://api.vietqr.io/img/PGB.png",
@@ -766,15 +766,15 @@
         "isTransfer": 0,
         "swift_code": "GBNKVNVX"
     },
-    "DongABank": {
+    "Vikki": {
         "id": 9,
-        "name": "Ngân hàng TMCP Đông Á",
-        "code": "DOB",
+        "name": "Ngân hàng TNHH MTV Số Vikki",
+        "code": "Vikki",
         "bin": "970406",
-        "logo": "https://api.vietqr.io/img/DOB.png",
+        "logo": "https://api.vietqr.io/img/Vikki.png",
         "transferSupported": 0,
         "lookupSupported": 1,
-        "short_name": "DongABank",
+        "short_name": "Vikki",
         "support": 0,
         "isTransfer": 0,
         "swift_code": "EACBVNVX"

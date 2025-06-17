@@ -1,3 +1,6 @@
 build
 .env
 dist
+Default
+__pycache__
+module/__pycache__

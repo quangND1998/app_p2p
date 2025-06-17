@@ -7,11 +7,17 @@ from PyQt5.QtGui import QPixmap
 from datetime import datetime
 from module.transaction_storage import TransactionStorage
 import os
+from PyQt5.QtCore import pyqtSignal
 
 class TransactionViewer(QMainWindow):
-    def __init__(self):
+    # Signal khi có thay đổi giao dịch
+    transaction_added = pyqtSignal()
+    transaction_updated = pyqtSignal()
+    transaction_deleted = pyqtSignal()
+
+    def __init__(self, storage=None):
         super().__init__()
-        self.storage = TransactionStorage()
+        self.storage = storage if storage else TransactionStorage()
         self.initUI()
         
     def initUI(self):
@@ -139,11 +145,12 @@ class TransactionViewer(QMainWindow):
             
             # Thông báo nếu không có giao dịch
             if not transactions:
-                QMessageBox.information(
-                    self,
-                    "Thông báo",
-                    f"Không có giao dịch nào vào ngày {date.strftime('%d/%m/%Y')}"
-                )
+                # QMessageBox.information(
+                #     self,
+                #     "Thông báo",
+                #     f"Không có giao dịch nào vào ngày {date.strftime('%d/%m/%Y')}"
+                # )
+                pass # Giữ lại pass để tránh lỗi cú pháp nếu không có lệnh nào khác
                 
         except Exception as e:
             QMessageBox.critical(

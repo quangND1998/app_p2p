@@ -37,15 +37,47 @@ def generate_vietqr(accountno=ACCOUNTNO, accountname=ACCOUNTNAME, acqid=ACQID, a
     return io.BytesIO(image_data)
 
 def get_nganhang_api():
+    """
+    Lấy danh sách ngân hàng từ API VietQR và lưu vào file bank_list.json
+    Returns:
+        dict: Danh sách ngân hàng dạng dictionary nếu thành công, None nếu thất bại
+    """
     url = 'https://api.vietqr.io/v2/banks'
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        banks = response.json()
-        logger.info("Fetched bank list successfully.")
-        return banks
+        banks_data = response.json()
+        
+        # Chuyển đổi format dữ liệu
+        formatted_banks = {}
+        for bank in banks_data.get('data', []):
+            bank_code = bank.get('code')
+            if bank_code:
+                formatted_banks[bank.get('shortName', bank_code)] = {
+                    "id": bank.get('id'),
+                    "name": bank.get('name'),
+                    "code": bank_code,
+                    "bin": bank.get('bin'),
+                    "logo": bank.get('logo'),
+                    "transferSupported": bank.get('transferSupported', 0),
+                    "lookupSupported": bank.get('lookupSupported', 0),
+                    "short_name": bank.get('short_name'),
+                    "support": bank.get('support', 0),
+                    "isTransfer": bank.get('isTransfer', 0),
+                    "swift_code": bank.get('swift_code')
+                }
+        
+        # Lưu vào file bank_list.json
+        with open(bank_dict_path, 'w', encoding='utf-8') as f:
+            json.dump(formatted_banks, f, ensure_ascii=False, indent=4)
+            
+        logger.info("Đã cập nhật danh sách ngân hàng thành công vào file bank_list.json")
+        return formatted_banks
     except requests.RequestException as e:
-        logger.error(f"Failed to fetch bank list: {e}")
+        logger.error(f"Lỗi khi lấy danh sách ngân hàng: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Lỗi không xác định: {e}")
         return None
 
 def get_nganhang_id(name_bank: str) -> str:
