@@ -115,7 +115,7 @@ class P2PBinance:
                 return
             
             self.logger.info(f"✅ Đủ thông tin, bắt đầu tạo QR code cho order: {order_number}")
-            
+
             if all([fiat_amount, bank_card, bank_name, reference_message, full_name]):
                 acqid_bank = get_nganhang_id(bank_name)
                 self.logger.info(f"🏦 Bank ID: {acqid_bank} cho ngân hàng: {bank_name}")
@@ -134,7 +134,7 @@ class P2PBinance:
                 self.logger.info(f"📸 Đã tạo QR code, kích thước: {len(qr_bytes)} bytes")
 
                 # Lưu thông tin giao dịch và mã QR
-                qr_path = self.storage.save_transaction(transaction_info, qr_bytes)
+                qr_path = self.storage.save_transaction(transaction_info, qr_bytes, "TRADING")
                 self.logger.info(f"💾 Đã lưu QR code tại: {qr_path}")
 
                 # Cập nhật thông tin giao dịch hiện tại
@@ -170,7 +170,7 @@ class P2PBinance:
             }
 
             # Lưu thông tin giao dịch và mã QR
-            qr_path = self.storage.save_transaction(transaction_info, qr_bytes)
+            qr_path = self.storage.save_transaction(transaction_info, qr_bytes, "TRADING")
             self.logger.info(f"💾 Đã lưu QR code tại: {qr_path}")
 
             # Cập nhật thông tin giao dịch hiện tại
@@ -206,7 +206,13 @@ class P2PBinance:
             "CANCELLED_BY_SYSTEM": "CANCELLED BY SYSTEM",
         }
         side = {"BUY": "BUY", "SELL": "SELL"}
-        used_orders = {}
+        
+        # Load used_orders từ JSON thay vì khởi tạo rỗng
+        end = int(datetime.utcnow().timestamp() * 1000)
+        start = end - 2700000  # ~45 minutes
+        used_orders = self.storage.load_used_orders(start_timestamp=start, end_timestamp=end)
+        self.logger.info(f"📋 Đã load {len(used_orders)} orders từ used_orders.json")
+        
         err_count = 0
 
         self.startup_update(used_orders)
@@ -215,7 +221,7 @@ class P2PBinance:
             try:
                 for trade_type in ["BUY", "SELL"]:
                     end = int(datetime.utcnow().timestamp() * 1000)
-                    start = end - 7200000     # ~45 minutes
+                    start = end - 2700000  # ~45 minutes
 
                     result = self.get_c2c_trade_history(
                         tradeType=trade_type, startDate=start, endDate=end
@@ -247,6 +253,8 @@ class P2PBinance:
                             )
 
                             used_orders[order_number] = order_status
+                            # Cập nhật vào JSON
+                            self.storage.update_used_orders(order_number, order_status)
                             self._send_notification(message)
 
                             if order_status == "TRADING":
@@ -420,8 +428,25 @@ class P2PBinance:
         return df_today
 
     def startup_update(self, database: dict):
-        for trd in ["BUY", "SELL"]:
-            res = self.get_c2c_trade_history(tradeType=trd)
-            logger.debug(f"Startup Trade History Result: {res}")
-            for k in res["data"]:
-                database[k["orderNumber"]] = k["orderStatus"]
+        """Cập nhật database với dữ liệu từ Binance API và lưu vào JSON"""
+        self.logger.info("🚀 Bắt đầu startup_update...")
+        
+        try:
+            for trd in ["BUY", "SELL"]:
+                res = self.get_c2c_trade_history(tradeType=trd)
+                self.logger.debug(f"Startup Trade History Result for {trd}: {res}")
+                
+                if res.get("data"):
+                    for k in res["data"]:
+                        order_number = k["orderNumber"]
+                        order_status = k["orderStatus"]
+                        database[order_number] = order_status
+                        
+                        # Cập nhật vào JSON
+                        self.storage.update_used_orders(order_number, order_status)
+            
+            self.logger.info(f"✅ Startup_update hoàn thành, đã cập nhật {len(database)} orders")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Lỗi trong startup_update: {e}")
+            # Vẫn tiếp tục với database hiện tại nếu có lỗi

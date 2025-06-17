@@ -5,6 +5,34 @@
     "amount": 523161307.0,
     "message": "Status: TRADING\nType: SELL\nPrice: ₫26158\nFiat Amount: 523161307.0 VND\nCrypto Amount: 20000.05 USDT\nOrder No.: 22768177956560101376",
     "timestamp": 1750141900.572614,
-    "qr_path": "transactions\\qr_codes\\sell_20250617_133140_22768177956560101376.png"
+    "qr_path": "transactions\\qr_codes\\sell_20250617_133140_22768177956560101376.png",
+    "order_status": "COMPLETED"
+  },
+  {
+    "type": "sell",
+    "order_number": "22768202909832933376",
+    "amount": 100000000.0,
+    "message": "Status: TRADING\nType: SELL\nPrice: ₫26129\nFiat Amount: 100000000.0 VND\nCrypto Amount: 3827.16 USDT\nOrder No.: 22768202909832933376",
+    "timestamp": 1750147867.936572,
+    "qr_path": "transactions\\qr_codes\\sell_20250617_151107_22768202909832933376.png",
+    "order_status": "COMPLETED"
+  },
+  {
+    "type": "sell",
+    "order_number": "22768210442625036288",
+    "amount": 7500000.0,
+    "message": "Status: TRADING\nType: SELL\nPrice: ₫26140\nFiat Amount: 7500000.0 VND\nCrypto Amount: 286.91 USDT\nOrder No.: 22768210442625036288",
+    "timestamp": 1750149645.074158,
+    "order_status": "COMPLETED",
+    "qr_path": "transactions\\qr_codes\\sell_20250617_154045_22768210442625036288.png"
+  },
+  {
+    "type": "sell",
+    "order_number": "22768210645724258304",
+    "amount": 30000000.0,
+    "message": "Status: TRADING\nType: SELL\nPrice: ₫26140\nFiat Amount: 30000000.0 VND\nCrypto Amount: 1147.66 USDT\nOrder No.: 22768210645724258304",
+    "timestamp": 1750149693.337317,
+    "order_status": "COMPLETED",
+    "qr_path": "transactions\\qr_codes\\sell_20250617_154133_22768210645724258304.png"
   }
 ]

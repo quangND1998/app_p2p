@@ -29,8 +29,16 @@ class TransactionStorage:
         date_str = timestamp.strftime("%Y%m%d_%H%M%S")
         return f"{transaction_type}_{date_str}_{order_number}.png"
         
-    def save_transaction(self, transaction_info: dict, qr_image: bytes = None) -> dict:
-        """Lưu thông tin giao dịch và mã QR"""
+    def save_transaction(self, transaction_info: dict, qr_image: bytes = None, order_status: str = None) -> dict:
+        """
+        Lưu thông tin giao dịch và mã QR
+        Args:
+            transaction_info: Thông tin giao dịch
+            qr_image: Dữ liệu QR code (bytes)
+            order_status: Trạng thái của order (optional)
+        Returns:
+            dict: Thông tin giao dịch đã lưu
+        """
         try:
             # Lấy timestamp từ transaction_info hoặc sử dụng thời gian hiện tại
             timestamp = datetime.fromtimestamp(transaction_info.get('timestamp', datetime.now().timestamp()))
@@ -44,6 +52,11 @@ class TransactionStorage:
             
             # Thêm thông tin giao dịch mới
             transaction_info['timestamp'] = timestamp.timestamp()
+            
+            # Thêm order_status nếu có
+            if order_status:
+                transaction_info['order_status'] = order_status
+                self.logger.info(f"📊 Đã thêm order_status: {order_status} cho order {transaction_info.get('order_number', 'N/A')}")
             
             # Lưu mã QR nếu có
             if qr_image:
@@ -133,4 +146,86 @@ class TransactionStorage:
             
         except Exception as e:
             self.logger.error(f"Lỗi khi lấy giao dịch gần đây: {e}")
-            return [] 
+            return []
+    
+    def load_used_orders(self, start_timestamp: int = None, end_timestamp: int = None) -> dict:
+        """
+        Load used_orders từ transactions trong khoảng thời gian
+        Args:
+            start_timestamp: Timestamp bắt đầu (milliseconds)
+            end_timestamp: Timestamp kết thúc (milliseconds)
+        Returns:
+            dict: Dictionary chứa order_number -> order_status
+        """
+        try:
+            used_orders = {}
+            
+            # Đọc tất cả các file transactions
+            for date_file in sorted(self.base_dir.glob("transactions_*.json"), reverse=True):
+                if not date_file.exists():
+                    continue
+                    
+                with open(date_file, 'r', encoding='utf-8') as f:
+                    transactions = json.load(f)
+                
+                for transaction in transactions:
+                    order_number = transaction.get('order_number')
+                    order_status = transaction.get('order_status', 'UNKNOWN')
+                    transaction_timestamp = transaction.get('timestamp', 0) * 1000  # Convert to milliseconds
+                    
+                    # Kiểm tra điều kiện thời gian nếu có
+                    if start_timestamp is not None and transaction_timestamp < start_timestamp:
+                        continue
+                    if end_timestamp is not None and transaction_timestamp > end_timestamp:
+                        continue
+                    
+                    if order_number:
+                        used_orders[order_number] = order_status
+            
+            self.logger.info(f"Đã load {len(used_orders)} orders từ transactions (có filter thời gian)")
+            return used_orders
+                
+        except Exception as e:
+            self.logger.error(f"Lỗi khi load used_orders từ transactions: {e}")
+            return {}
+    
+    def update_used_orders(self, order_number: str, order_status: str) -> bool:
+        """
+        Cập nhật trạng thái của một order cụ thể trong transactions
+        Args:
+            order_number: Số order
+            order_status: Trạng thái mới
+        Returns:
+            bool: True nếu cập nhật thành công
+        """
+        try:
+            # Tìm transaction trong tất cả các file
+            for date_file in self.base_dir.glob("transactions_*.json"):
+                if not date_file.exists():
+                    continue
+                    
+                with open(date_file, 'r', encoding='utf-8') as f:
+                    transactions = json.load(f)
+                
+                # Tìm và cập nhật transaction
+                updated = False
+                for transaction in transactions:
+                    if transaction.get('order_number') == order_number:
+                        transaction['order_status'] = order_status
+                        updated = True
+                        break
+                
+                # Lưu lại nếu có cập nhật
+                if updated:
+                    with open(date_file, 'w', encoding='utf-8') as f:
+                        json.dump(transactions, f, ensure_ascii=False, indent=2)
+                    
+                    self.logger.debug(f"Đã cập nhật order {order_number} -> {order_status} trong {date_file}")
+                    return True
+            
+            self.logger.warning(f"Không tìm thấy order {order_number} trong transactions để cập nhật")
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Lỗi khi cập nhật used_orders cho order {order_number}: {e}")
+            return False 
