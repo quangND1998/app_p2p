@@ -51,70 +51,136 @@ class P2PBinance:
 
     def handle_buy_order(self, order_number, message):
         """Xử lý đơn hàng mua"""
-        infor_seller = extract_order_info(order_number)
-        message = "".join(f"{k}: {v}\n" for k, v in infor_seller.items())
+        self.logger.info(f"🔍 Bắt đầu xử lý BUY order: {order_number}")
+        
+        try:
+            # Trích xuất thông tin từ order
+            self.logger.info(f"📋 Đang trích xuất thông tin cho order: {order_number}")
+            infor_seller = extract_order_info(order_number)
+            self.logger.info(f"📊 Thông tin trích xuất ban đầu: {infor_seller}")
+            
+            if not infor_seller:
+                self.logger.error(f"❌ Không thể trích xuất thông tin cho order: {order_number}")
+                return
+            
+            message = "".join(f"{k}: {v}\n" for k, v in infor_seller.items())
+            self.logger.debug(f"📝 Message được tạo: {message}")
 
-        infor_seller = extract_info_by_key(infor_seller)
-        self.logger.debug(f"Extracted Info: {infor_seller}")
+            infor_seller = extract_info_by_key(infor_seller)
+            self.logger.info(f"🔧 Thông tin sau khi xử lý: {infor_seller}")
 
-        fiat_amount = infor_seller.get("Fiat amount")
-        full_name = infor_seller.get("Full Name")
-        bank_card = infor_seller.get("Bank Card")
-        bank_name = infor_seller.get("Bank Name")
-        reference_message = infor_seller.get("Reference message")
+            fiat_amount = infor_seller.get("Fiat amount")
+            full_name = infor_seller.get("Full Name")
+            bank_card = infor_seller.get("Bank Card")
+            bank_name = infor_seller.get("Bank Name")
+            reference_message = infor_seller.get("Reference message")
 
-        # Tạo thông tin giao dịch
-        transaction_info = {
-            "type": "buy",
-            "order_number": order_number,
-            "amount": fiat_amount,
-            "bank_name": bank_name,
-            "account_number": bank_card,
-            "account_name": full_name,
-            "reference": reference_message,
-            "message": message,
-        }
+            # Log từng trường thông tin
+            self.logger.info(f"💰 Fiat Amount: {fiat_amount}")
+            self.logger.info(f"👤 Full Name: {full_name}")
+            self.logger.info(f"💳 Bank Card: {bank_card}")
+            self.logger.info(f"🏦 Bank Name: {bank_name}")
+            self.logger.info(f"📝 Reference Message: {reference_message}")
 
-        if all([fiat_amount, bank_card, bank_name, reference_message, full_name]):
-            acqid_bank = get_nganhang_id(bank_name)
+            # Tạo thông tin giao dịch
+            transaction_info = {
+                "type": "buy",
+                "order_number": order_number,
+                "amount": fiat_amount,
+                "bank_name": bank_name,
+                "account_number": bank_card,
+                "account_name": full_name,
+                "reference": reference_message,
+                "message": message,
+            }
+
+            # Kiểm tra điều kiện đầy đủ thông tin
+            required_fields = [fiat_amount, bank_card, bank_name, reference_message, full_name]
+            missing_fields = []
+            
+            if not fiat_amount:
+                missing_fields.append("Fiat Amount")
+            if not bank_card:
+                missing_fields.append("Bank Card")
+            if not bank_name:
+                missing_fields.append("Bank Name")
+            if not reference_message:
+                missing_fields.append("Reference Message")
+            if not full_name:
+                missing_fields.append("Full Name")
+            
+            if missing_fields:
+                self.logger.warning(f"⚠️ Thiếu thông tin cho order {order_number}: {missing_fields}")
+                self.logger.info(f"📋 Thông tin hiện có: {transaction_info}")
+                return
+            
+            self.logger.info(f"✅ Đủ thông tin, bắt đầu tạo QR code cho order: {order_number}")
+            
+            if all([fiat_amount, bank_card, bank_name, reference_message, full_name]):
+                acqid_bank = get_nganhang_id(bank_name)
+                self.logger.info(f"🏦 Bank ID: {acqid_bank} cho ngân hàng: {bank_name}")
+                
+                qr_image = generate_vietqr(
+                    accountno=bank_card,
+                    accountname=full_name,
+                    acqid=acqid_bank,
+                    addInfo=reference_message,
+                    amount=fiat_amount,
+                    template="rc9Vk60",
+                )
+
+                # Chuyển đổi BytesIO thành bytes
+                qr_bytes = qr_image.getvalue()
+                self.logger.info(f"📸 Đã tạo QR code, kích thước: {len(qr_bytes)} bytes")
+
+                # Lưu thông tin giao dịch và mã QR
+                qr_path = self.storage.save_transaction(transaction_info, qr_bytes)
+                self.logger.info(f"💾 Đã lưu QR code tại: {qr_path}")
+
+                # Cập nhật thông tin giao dịch hiện tại
+                self.current_transaction = transaction_info
+                self.current_transaction["qr_path"] = qr_path
+                
+                self.logger.info(f"🎉 Hoàn thành xử lý BUY order: {order_number}")
+            else:
+                self.logger.error(f"❌ Điều kiện all() không thỏa mãn cho order: {order_number}")
+                
+        except Exception as e:
+            self.logger.error(f"💥 Lỗi khi xử lý BUY order {order_number}: {str(e)}", exc_info=True)
+
+    def handle_sell_order(self, order_number, fiat_amount, message):
+        """Xử lý đơn hàng bán"""
+        self.logger.info(f"🔍 Bắt đầu xử lý SELL order: {order_number}")
+        
+        try:
             qr_image = generate_vietqr(
-                accountno=bank_card,
-                accountname=full_name,
-                acqid=acqid_bank,
-                addInfo=reference_message,
-                amount=fiat_amount,
-                template="rc9Vk60",
+                addInfo=order_number, amount=fiat_amount, template="rc9Vk60"
             )
 
+            # Chuyển đổi BytesIO thành bytes
+            qr_bytes = qr_image.getvalue()
+            self.logger.info(f"📸 Đã tạo QR code cho SELL order, kích thước: {len(qr_bytes)} bytes")
+
+            # Tạo thông tin giao dịch
+            transaction_info = {
+                "type": "sell",
+                "order_number": order_number,
+                "amount": fiat_amount,
+                "message": message,
+            }
+
             # Lưu thông tin giao dịch và mã QR
-            qr_path = self.storage.save_transaction(transaction_info, qr_image)
-            self.logger.info(f"Saved QR code to: {qr_path}")
+            qr_path = self.storage.save_transaction(transaction_info, qr_bytes)
+            self.logger.info(f"💾 Đã lưu QR code tại: {qr_path}")
 
             # Cập nhật thông tin giao dịch hiện tại
             self.current_transaction = transaction_info
             self.current_transaction["qr_path"] = qr_path
-
-    def handle_sell_order(self, order_number, fiat_amount, message):
-        """Xử lý đơn hàng bán"""
-        qr_image = generate_vietqr(
-            addInfo=order_number, amount=fiat_amount, template="rc9Vk60"
-        )
-
-        # Tạo thông tin giao dịch
-        transaction_info = {
-            "type": "sell",
-            "order_number": order_number,
-            "amount": fiat_amount,
-            "message": message,
-        }
-
-        # Lưu thông tin giao dịch và mã QR
-        qr_path = self.storage.save_transaction(transaction_info, qr_image)
-        self.logger.info(f"Saved QR code to: {qr_path}")
-
-        # Cập nhật thông tin giao dịch hiện tại
-        self.current_transaction = transaction_info
-        self.current_transaction["qr_path"] = qr_path
+            
+            self.logger.info(f"🎉 Hoàn thành xử lý SELL order: {order_number}")
+            
+        except Exception as e:
+            self.logger.error(f"💥 Lỗi khi xử lý SELL order {order_number}: {str(e)}", exc_info=True)
 
     def get_recent_transactions(self, limit: int = 10) -> list:
         """Lấy danh sách giao dịch gần đây"""
@@ -149,7 +215,7 @@ class P2PBinance:
             try:
                 for trade_type in ["BUY", "SELL"]:
                     end = int(datetime.utcnow().timestamp() * 1000)
-                    start = end - 2700000  # ~45 minutes
+                    start = end - 7200000     # ~45 minutes
 
                     result = self.get_c2c_trade_history(
                         tradeType=trade_type, startDate=start, endDate=end
@@ -169,6 +235,8 @@ class P2PBinance:
                             )
 
                         if previous_status is None or previous_status != order_status:
+                            self.logger.info(f"🔄 Status thay đổi cho order {order_number}: {previous_status} -> {order_status}")
+                            
                             message = (
                                 f"Status: {status.get(order_status)}\n"
                                 f"Type: {side.get(order['tradeType'])}\n"
@@ -182,14 +250,21 @@ class P2PBinance:
                             self._send_notification(message)
 
                             if order_status == "TRADING":
+                                self.logger.info(f"🎯 Bắt đầu xử lý order TRADING: {order_number} (Type: {trade_type})")
                                 if trade_type == "BUY":
+                                    self.logger.info(f"🛒 Gọi handle_buy_order cho order: {order_number}")
                                     self.handle_buy_order(order_number, message)
                                 elif trade_type == "SELL":
+                                    self.logger.info(f"🛍️ Gọi handle_sell_order cho order: {order_number}")
                                     self.handle_sell_order(
                                         order_number,
                                         float(order["totalPrice"]),
                                         message,
                                     )
+                                else:
+                                    self.logger.warning(f"⚠️ Trade type không xác định: {trade_type}")
+                            else:
+                                self.logger.info(f"📝 Order {order_number} có status {order_status} (không phải TRADING)")
 
                 time.sleep(1)
 

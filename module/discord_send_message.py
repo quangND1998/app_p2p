@@ -51,11 +51,13 @@ if __name__ == "__main__":
                 Thông tin người bán:
                 Đối chiếu với QR code bên dưới!"""
                 )
-    image = generate_vietqr(
+    qr_image = generate_vietqr(
                 accountno="0818331300",
                 accountname="An Hoàng Anh",
                 acqid="970436",
                 addInfo="reference_message",
                 amount=150000,
                 template="rc9Vk60")
-    bot.send_photo(image, "📷 Đây là ảnh test gửi từ bot Discord.")
+    # Chuyển đổi BytesIO thành bytes
+    qr_bytes = qr_image.getvalue()
+    bot.send_photo(qr_bytes, "📷 Đây là ảnh test gửi từ bot Discord.")

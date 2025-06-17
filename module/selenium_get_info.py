@@ -89,32 +89,51 @@ def extract_order_info(order_no: str) -> dict:
         try:
             return float(vnd_str.replace("₫", "").replace(",", "").strip())
         except Exception as e:
-            print(f"[LỖI] parse_currency: {e}")
+            logger.error(f"[LỖI] parse_currency: {e}")
             return None
 
     driver = None
     bank_info = {}
     label,value = None, None
     try:
+        logger.info(f"🚀 Bắt đầu trích xuất thông tin cho order: {order_no}")
         driver = create_driver(False)
         driver.execute_script("window.open('');")
         tabs = driver.window_handles
         driver.switch_to.window(tabs[-1])
         
-        driver.get(f"https://p2p.binance.com/en/fiatOrderDetail?orderNo={order_no}")
+        url = f"https://p2p.binance.com/en/fiatOrderDetail?orderNo={order_no}"
+        logger.info(f"🌐 Đang truy cập URL: {url}")
+        driver.get(url)
         time.sleep(3)
+        
+        logger.info("⏳ Đang chờ trang load...")
         WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'div.subtitle6.text-textBuy'))  # sửa lại selector theo thực tế
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'div.subtitle6.text-textBuy'))
                 )
+        logger.info("✅ Trang đã load thành công")
         
         soup = BeautifulSoup(driver.page_source, "html.parser")
+        logger.info("📄 Đã parse HTML thành công")
+        
+        # Tìm fiat amount
         fiat_block = soup.select_one("div.subtitle6.text-textBuy")
         if fiat_block:
             fiat_amount = fiat_block.get_text(strip=True)
-            bank_info["Fiat amount"] =  parse_currency(fiat_amount)
+            bank_info["Fiat amount"] = parse_currency(fiat_amount)
+            logger.info(f"💰 Tìm thấy Fiat Amount: {fiat_amount} -> {bank_info['Fiat amount']}")
+        else:
+            logger.warning("⚠️ Không tìm thấy Fiat Amount block")
 
+        # Tìm các thông tin khác
         sections = soup.find('div',class_='relative w-full')
+        if not sections:
+            logger.warning("⚠️ Không tìm thấy section chính")
+            return bank_info
+            
         label_tag,value_tag = None, None
+        found_fields = 0
+        
         for section in sections:
             all_divs = section.find_all("div")  
             for div in all_divs:
@@ -127,16 +146,23 @@ def extract_order_info(order_no: str) -> dict:
                     label = label_tag.text.strip()
                     value = value_tag.text.strip()
                     bank_info[label] = value
+                    found_fields += 1
+                    logger.info(f"📋 Tìm thấy field: {label} = {value}")
                     label,value = None, None
 
-        print(f"[THÀNH CÔNG] Đã trích xuất thông tin: {bank_info}")
-        driver.close()    
+        logger.info(f"📊 Tổng số fields tìm thấy: {found_fields}")
+        logger.info(f"🎯 Thông tin cuối cùng: {bank_info}")
+        
+        driver.close()
+        logger.info("✅ Hoàn thành trích xuất thông tin")
+        
     except Exception as e:
-        print(f"[LỖI] Lỗi khi trích xuất dữ liệu: {e}")
+        logger.error(f"💥 Lỗi khi trích xuất dữ liệu cho order {order_no}: {str(e)}", exc_info=True)
 
     finally:
         if driver:
             driver.quit()
+            logger.info("🔒 Đã đóng driver")
     return bank_info
 
 def launch_chrome_remote_debugging(port: int = 9222) -> None:

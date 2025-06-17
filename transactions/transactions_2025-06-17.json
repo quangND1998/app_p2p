@@ -1,0 +1,10 @@
+[
+  {
+    "type": "sell",
+    "order_number": "22768177956560101376",
+    "amount": 523161307.0,
+    "message": "Status: TRADING\nType: SELL\nPrice: ₫26158\nFiat Amount: 523161307.0 VND\nCrypto Amount: 20000.05 USDT\nOrder No.: 22768177956560101376",
+    "timestamp": 1750141900.572614,
+    "qr_path": "transactions\\qr_codes\\sell_20250617_133140_22768177956560101376.png"
+  }
+]
