@@ -225,9 +225,14 @@ class P2PBinance:
 
         while not self._stop_flag:
             try:
+                # 🔄 Reload used_orders từ JSON mỗi lần lặp để đảm bảo đồng bộ
+                end = int(datetime.utcnow().timestamp() * 1000)
+                start = end - 2700000  # ~45 minutes
+                used_orders = self.storage.load_used_orders(start_timestamp=start, end_timestamp=end)
+                
                 for trade_type in ["BUY", "SELL"]:
                     end = int(datetime.utcnow().timestamp() * 1000)
-                    start = end - 7200000*2  # ~45 minutes
+                    start = end - 2700000  # ~45 minutes
 
                     result = self.get_c2c_trade_history(
                         tradeType=trade_type, startDate=start, endDate=end
@@ -244,14 +249,17 @@ class P2PBinance:
                         #     f"Crypto Amount: {order['amount']} {order['asset']} | "
                         #     f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
                         # )
-                        if order_status == "TRADING":
-                            self.logger.info(
-                                f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "
-                                f"Price: {order['fiatSymbol']}{order['unitPrice']} | "
-                                f"Fiat Amount: {order['totalPrice']} {order['fiat']} | "
-                                f"Crypto Amount: {order['amount']} {order['asset']} | "
-                                f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
-                            )
+                        # if order_status == "TRADING":
+                        #     self.logger.info(
+                        #         f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "
+                        #         f"Price: {order['fiatSymbol']}{order['unitPrice']} | "
+                        #         f"Fiat Amount: {order['totalPrice']} {order['fiat']} | "
+                        #         f"Crypto Amount: {order['amount']} {order['asset']} | "
+                        #         f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
+                        #     )
+                        #     self.logger.info(
+                        #         f"[Order] #{order_number} | Pervious Status: {previous_status}  "
+                        #     )
                             # Log toàn bộ thông tin order
                             # self.logger.info(f"📋 Toàn bộ thông tin order {order_number}:")
                             # for key, value in order.items():

@@ -201,7 +201,7 @@ class TransactionStorage:
                     if order_number:
                         used_orders[order_number] = order_status
             
-            self.logger.info(f"Đã load {len(used_orders)} orders từ transactions (có filter thời gian)")
+            # self.logger.info(f"Đã load {len(used_orders)} orders từ transactions (có filter thời gian)")
             return used_orders
                 
         except Exception as e:
@@ -242,7 +242,7 @@ class TransactionStorage:
                     self.logger.debug(f"Đã cập nhật order {order_number} -> {order_status} trong {date_file}")
                     return True
             
-            self.logger.warning(f"Không tìm thấy order {order_number} trong transactions để cập nhật")
+            # self.logger.warning(f"Không tìm thấy order {order_number} trong transactions để cập nhật")
             return False
             
         except Exception as e:

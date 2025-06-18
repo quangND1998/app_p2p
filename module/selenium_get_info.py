@@ -108,7 +108,7 @@ def extract_order_info(order_no: str) -> dict:
         time.sleep(3)
         
         logger.info("⏳ Đang chờ trang load...")
-        WebDriverWait(driver, 30).until(
+        WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'div.subtitle6.text-textBuy'))
                 )
         logger.info("✅ Trang đã load thành công")
