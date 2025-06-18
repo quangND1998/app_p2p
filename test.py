@@ -11,5 +11,4 @@ def thongke_job_sync():
 
 if __name__ == "__main__":
     infor_seller =  extract_order_info("22764873980271484928")
-    print(infor_seller)
-    #launch_chrome_remote_debugging(port=9222)
+    print(infor_seller)    #launch_chrome_remote_debugging(port=9222)

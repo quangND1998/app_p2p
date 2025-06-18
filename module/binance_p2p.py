@@ -287,7 +287,7 @@ class P2PBinance:
                             self.storage.update_used_orders(order_number, order_status)
                             self._send_notification(message)
 
-                            if order_status == "TRADING":
+                            if order_status:
                                 self.logger.info(f"🎯 Bắt đầu xử lý order TRADING: {order_number} (Type: {trade_type})")
                                 if trade_type == "BUY":
                                     self.logger.info(f"🛒 Gọi handle_buy_order cho order: {order_number}")

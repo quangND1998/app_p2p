@@ -62,9 +62,6 @@ def create_options(headless: bool = False, port: int = 9222) -> Options:
     chrome_options.add_argument('--disable-popup-blocking')
     chrome_options.add_argument('--disable-infobars')
     
-    # Cài đặt debug port
-    chrome_options.debugger_address = f"127.0.0.1:{port}"
-    
     # Cài đặt headless nếu cần
     if headless:
         chrome_options.add_argument('--headless=new')
