@@ -231,13 +231,13 @@ class P2PBinance:
                         order_status = order["orderStatus"]
                         order_number = order["orderNumber"]
                         previous_status = used_orders.get(order_number)
-                        self.logger.info(
-                            f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "
-                            f"Price: {order['fiatSymbol']}{order['unitPrice']} | "
-                            f"Fiat Amount: {order['totalPrice']} {order['fiat']} | "
-                            f"Crypto Amount: {order['amount']} {order['asset']} | "
-                            f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
-                        )
+                        # self.logger.info(
+                        #     f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "
+                        #     f"Price: {order['fiatSymbol']}{order['unitPrice']} | "
+                        #     f"Fiat Amount: {order['totalPrice']} {order['fiat']} | "
+                        #     f"Crypto Amount: {order['amount']} {order['asset']} | "
+                        #     f"Created at: {datetime.fromtimestamp(order['createTime']/1000).strftime('%Y-%m-%d %H:%M:%S')}"
+                        # )
                         if order_status == "TRADING":
                             self.logger.info(
                                 f"[Order] #{order_number} | Status: {order_status} | Type: {order['tradeType']} | "

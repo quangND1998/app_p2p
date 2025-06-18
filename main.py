@@ -4,8 +4,9 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QPushButton,
                            QGroupBox, QLineEdit, QTextEdit, QComboBox, 
                            QSpinBox, QDoubleSpinBox, QTableWidget, QHeaderView, 
                            QTableWidgetItem, QScrollArea, QAbstractItemView, 
-                           QFormLayout, QCheckBox, QProgressDialog)
-from PyQt5.QtCore import QObject, pyqtSignal, QThread, QDate, QThread, Qt
+                           QFormLayout, QCheckBox, QProgressDialog, QProgressBar,
+                           QFrame, QSplitter)
+from PyQt5.QtCore import QObject, pyqtSignal, QThread, QDate, QThread, Qt, QTimer
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QImage
 
 import sys
@@ -140,6 +141,13 @@ class MainWindow(QMainWindow):
         # Load dữ liệu ban đầu
         self.refresh_transaction_list()
         
+        # Khởi tạo timer cho realtime update
+        self.realtime_timer = QTimer()
+        self.realtime_timer.timeout.connect(self.realtime_refresh)
+        self.realtime_enabled = False  # Mặc định tắt realtime
+        self.realtime_interval = 5000  # 5 giây mặc định
+        self.last_update_time = None  # Thời gian cập nhật cuối cùng
+
     def initUI(self):
         """Khởi tạo giao diện"""
         self.setWindowTitle('Binance P2P Trading')
@@ -257,15 +265,66 @@ class MainWindow(QMainWindow):
         search_layout.addWidget(QLabel("Loại giao dịch:"))
         search_layout.addWidget(self.transaction_type_combo)
         
+        # Order status combo
+        self.order_status_combo = QComboBox()
+        self.order_status_combo.addItems([
+            "Tất cả", "TRADING", "COMPLETED", "PENDING", 
+            "BUYER_PAYED", "DISTRIBUTING", "IN_APPEAL", 
+            "CANCELLED", "CANCELLED_BY_SYSTEM"
+        ])
+        self.order_status_combo.setCurrentText("TRADING")  # Mặc định là TRADING
+        self.order_status_combo.currentTextChanged.connect(self.filter_transactions)
+        self.order_status_combo.setFont(QFont("Arial", 12)) # Tăng cỡ chữ
+        search_layout.addWidget(QLabel("Trạng thái:"))
+        search_layout.addWidget(self.order_status_combo)
+        
         search_group.setLayout(search_layout)
         trade_layout.addWidget(search_group)
         
+        # Group realtime update
+        realtime_group = QGroupBox("Cập nhật realtime")
+        realtime_layout = QHBoxLayout()
+        
+        # Checkbox bật/tắt realtime
+        self.realtime_checkbox = QCheckBox("Bật cập nhật tự động")
+        self.realtime_checkbox.stateChanged.connect(self.toggle_realtime)
+        realtime_layout.addWidget(self.realtime_checkbox)
+        
+        # Combobox chọn interval
+        self.interval_combo = QComboBox()
+        self.interval_combo.addItems(["3 giây", "5 giây", "10 giây", "30 giây", "1 phút"])
+        self.interval_combo.setCurrentText("5 giây")  # Mặc định 5 giây
+        self.interval_combo.currentTextChanged.connect(self.change_interval)
+        self.interval_combo.setFont(QFont("Arial", 10))
+        realtime_layout.addWidget(QLabel("Tần suất:"))
+        realtime_layout.addWidget(self.interval_combo)
+        
+        # Label hiển thị trạng thái
+        self.realtime_status_label = QLabel("Đã tắt")
+        self.realtime_status_label.setStyleSheet("color: red; font-weight: bold;")
+        realtime_layout.addWidget(self.realtime_status_label)
+        
+        # Label hiển thị số lượng giao dịch
+        self.transaction_count_label = QLabel("Giao dịch: 0")
+        self.transaction_count_label.setStyleSheet("color: blue; font-weight: bold;")
+        realtime_layout.addWidget(self.transaction_count_label)
+        
+        # Nút refresh thủ công
+        self.manual_refresh_btn = QPushButton("🔄 Làm mới ngay")
+        self.manual_refresh_btn.clicked.connect(lambda: self.refresh_transaction_list(silent=False))
+        self.manual_refresh_btn.setFont(QFont("Arial", 10))
+        realtime_layout.addWidget(self.manual_refresh_btn)
+        
+        realtime_layout.addStretch()
+        realtime_group.setLayout(realtime_layout)
+        trade_layout.addWidget(realtime_group)
+        
         # Bảng giao dịch
         self.trade_table = QTableWidget()
-        self.trade_table.setColumnCount(8)
+        self.trade_table.setColumnCount(9)
         self.trade_table.setHorizontalHeaderLabels([
             "Loại", "Số Order", "Số tiền", "Ngân hàng",
-            "Số TK", "Tên TK", "Thông tin", "Thời gian"
+            "Số TK", "Tên TK", "Thông tin", "Thời gian", "Trạng thái"
         ])
         # Tự động điều chỉnh độ rộng cột
         self.trade_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -984,36 +1043,57 @@ class MainWindow(QMainWindow):
         logging.getLogger().removeHandler(self.log_handler)
         event.accept()
 
-    def refresh_transaction_list(self):
+    def refresh_transaction_list(self, silent=False):
         """Refresh danh sách giao dịch trong bảng"""
         try:
-            self.log("Đang làm mới danh sách giao dịch...")
+            if not silent:
+                self.log("Đang làm mới danh sách giao dịch...")
             # Lấy ngày hiện tại từ date picker
             date = self.date_edit.date().toPyDate()
-            self.log(f"Ngày đã chọn: {date.strftime('%d/%m/%Y')}")
+            if not silent:
+                self.log(f"Ngày đã chọn: {date.strftime('%d/%m/%Y')}")
             
             # Lấy danh sách giao dịch từ storage
             transactions = self.transaction_storage.get_transactions_by_date(date)
             
+            # Kiểm tra xem có giao dịch mới không
+            old_count = len(self.transaction_cache) if self.transaction_cache else 0
+            new_count = len(transactions)
+            
             # Lưu vào cache
             self.transaction_cache = transactions
-            self.transaction_page = 0  # Reset về trang đầu
             
-            self.log(f"Đã tải {len(transactions)} giao dịch từ storage.")
+            # Cập nhật label số lượng giao dịch
+            self.transaction_count_label.setText(f"Giao dịch: {len(transactions)}")
+            
+            # Chỉ reset trang nếu không phải realtime update
+            if not silent:
+                self.transaction_page = 0  # Reset về trang đầu
+            
+            if not silent:
+                self.log(f"Đã tải {len(transactions)} giao dịch từ storage.")
+            
+            # Hiển thị danh sách
             self.display_transaction_page()
             
             if not transactions:
-                self.log(f"ℹ️ Không tìm thấy giao dịch nào cho ngày {date.strftime('%d/%m/%Y')}")
+                if not silent:
+                    self.log(f"ℹ️ Không tìm thấy giao dịch nào cho ngày {date.strftime('%d/%m/%Y')}")
             else:
-                self.log(f"🔄 Đã cập nhật danh sách giao dịch ({len(transactions)} giao dịch)")
+                if silent and new_count > old_count:
+                    # Chỉ log khi có giao dịch mới trong realtime
+                    self.log(f"🆕 Phát hiện {new_count - old_count} giao dịch mới! (Tổng: {new_count})")
+                elif not silent:
+                    self.log(f"🔄 Đã cập nhật danh sách giao dịch ({len(transactions)} giao dịch)")
             
         except Exception as e:
             self.log(f"❌ Lỗi khi cập nhật danh sách giao dịch: {str(e)}")
-            QMessageBox.critical(
-                self,
-                "Lỗi",
-                f"Không thể cập nhật danh sách giao dịch: {str(e)}"
-            )
+            if not silent:
+                QMessageBox.critical(
+                    self,
+                    "Lỗi",
+                    f"Không thể cập nhật danh sách giao dịch: {str(e)}"
+                )
 
     def display_transaction_page(self):
         """Hiển thị trang hiện tại của danh sách giao dịch"""
@@ -1073,6 +1153,10 @@ class MainWindow(QMainWindow):
             time_str = datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
             self.trade_table.setItem(row, 7, QTableWidgetItem(time_str))
             
+            # Trạng thái
+            order_status = trans.get('order_status', 'TRADING')
+            self.trade_table.setItem(row, 8, QTableWidgetItem(order_status))
+            
             # Lưu đường dẫn QR vào item nếu có
             if 'qr_path' in trans:
                 self.trade_table.item(row, 1).setData(Qt.UserRole, trans['qr_path'])
@@ -1099,10 +1183,10 @@ class MainWindow(QMainWindow):
         filtered = self.transaction_cache
         self.log(f"Cache ban đầu: {len(filtered)} giao dịch")
         
-        # Lọc theo số order
+        # Lọc theo số order (tìm kiếm theo số cuối)
         order_number = self.order_number_input.text().strip()
         if order_number:
-            filtered = [t for t in filtered if str(t.get('order_number', '')).startswith(order_number)]
+            filtered = [t for t in filtered if str(t.get('order_number', '')).endswith(order_number)]
         
         # Lọc theo loại giao dịch
         trade_type = self.transaction_type_combo.currentText()
@@ -1114,6 +1198,11 @@ class MainWindow(QMainWindow):
             target_type = type_map.get(trade_type)
             if target_type:
                 filtered = [t for t in filtered if t.get('type', '').lower() == target_type.lower()]
+        
+        # Lọc theo trạng thái order
+        order_status = self.order_status_combo.currentText()
+        if order_status != "Tất cả":
+            filtered = [t for t in filtered if t.get('order_status', '') == order_status]
         
         return filtered
 
@@ -1199,6 +1288,49 @@ class MainWindow(QMainWindow):
                 f"Không thể hiển thị QR code: {str(e)}"
             )
             self.log(f"❌ Lỗi khi hiển thị QR code: {str(e)}")
+
+    def toggle_realtime(self, state):
+        """Bật/tắt cập nhật realtime"""
+        if state == Qt.Checked:
+            self.realtime_enabled = True
+            self.realtime_timer.start(self.realtime_interval)
+            self.realtime_status_label.setText("Đang cập nhật...")
+            self.realtime_status_label.setStyleSheet("color: green; font-weight: bold;")
+            self.log("🔄 Đã bật cập nhật realtime")
+        else:
+            self.realtime_enabled = False
+            self.realtime_timer.stop()
+            self.realtime_status_label.setText("Đã tắt")
+            self.realtime_status_label.setStyleSheet("color: red; font-weight: bold;")
+            self.log("⏹️ Đã tắt cập nhật realtime")
+
+    def change_interval(self, text):
+        """Thay đổi tần suất cập nhật"""
+        interval_map = {
+            "3 giây": 3000,
+            "5 giây": 5000,
+            "10 giây": 10000,
+            "30 giây": 30000,
+            "1 phút": 60000
+        }
+        
+        new_interval = interval_map.get(text, 5000)
+        self.realtime_interval = new_interval
+        
+        # Nếu đang bật realtime, restart timer với interval mới
+        if self.realtime_enabled:
+            self.realtime_timer.stop()
+            self.realtime_timer.start(new_interval)
+            self.log(f"🔄 Đã thay đổi tần suất cập nhật: {text}")
+
+    def realtime_refresh(self):
+        """Hàm thực hiện refresh danh sách giao dịch trong realtime"""
+        self.refresh_transaction_list(silent=True)
+        self.last_update_time = datetime.now()
+        # Cập nhật status label với thời gian
+        if self.last_update_time:
+            time_str = self.last_update_time.strftime('%H:%M:%S')
+            self.realtime_status_label.setText(f"Đang cập nhật... (Cuối: {time_str})")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
