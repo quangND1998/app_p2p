@@ -19,7 +19,7 @@ chromedriver_path = resource_path('chromedriver_win32/chromedriver.exe')
 block_cipher = None
 
 a = Analysis(
-    ['main.py'],
+    ['main.py'],  # Build từ main.py mới
     pathex=[],
     binaries=[],
     datas=[
@@ -29,14 +29,44 @@ a = Analysis(
     ],
     hiddenimports=[
         'PyQt5',
+        'PyQt5.QtCore',
+        'PyQt5.QtWidgets',
+        'PyQt5.QtGui',
         'selenium',
+        'selenium.webdriver',
+        'selenium.webdriver.chrome',
+        'selenium.webdriver.common.by',
+        'selenium.webdriver.support.ui',
+        'selenium.webdriver.support',
+        'selenium.webdriver.support.expected_conditions',
+        'selenium.common.exceptions',
         'pandas',
+        'pandas.io.excel',
+        'openpyxl',
         'dotenv',
+        'python_dotenv',
+        'requests',
+        'python_binance',
+        'binance',
+        'binance.client',
+        'binance.exceptions',
+        'apscheduler',
+        'numpy',
+        'tabulate',
+        'pandas_ta',
+        'webdriver_manager',
+        'rapidfuzz',
+        'bs4',
+        'qasync',
         'module.selenium_get_info',
         'module.binance_p2p',
         'module.generate_qrcode',
         'module.transaction_storage',
-        'transaction_viewer'
+        'module.discord_send_message',
+        'module.telegram_send_message',
+        'module.resource_path',
+        'transaction_viewer',
+        'config_env',
     ],
     hookspath=[],
     hooksconfig={},
@@ -44,6 +74,7 @@ a = Analysis(
     excludes=[
         'tkinter', 'matplotlib', 'scipy', 'PIL',  # Loại bỏ các module không cần thiết
         'numpy.random._examples',  # Loại bỏ các module có thể gây nghi ngờ
+        'test', 'tests', 'testing',  # Loại bỏ các file test
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -70,17 +101,16 @@ exe = EXE(
     upx=False,  # Tắt UPX để tránh false positive
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # Tạm thời bật console để xem lỗi
+    console=False,  # Tắt console cho phiên bản production
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     version='file_version_info.txt',
-    # icon='app_icon.ico',  # Temporarily comment out icon
-    uac_admin=False,
     icon=None,  # Tạm thời bỏ icon
     # Thêm các tùy chọn bảo mật
+    uac_admin=False,
     uac_uiaccess=False,
     win_private_assemblies=False,
     win_no_prefer_redirects=False,
