@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QPushButton,
                            QSpinBox, QDoubleSpinBox, QTableWidget, QHeaderView, 
                            QTableWidgetItem, QScrollArea, QAbstractItemView, 
                            QFormLayout, QCheckBox, QProgressDialog, QProgressBar,
-                           QFrame, QSplitter)
+                           QFrame, QSplitter, QDialog, QDialogButtonBox)
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QDate, QThread, Qt, QTimer
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QImage
 
@@ -47,6 +47,108 @@ class LogHandler(logging.Handler, QObject):
     def emit(self, record):
         msg = self.format(record)
         self.log_signal.emit(msg)
+
+class ApiKeyDialog(QDialog):
+    """Dialog để người dùng nhập BINANCE_KEY và BINANCE_SECRET"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.binance_key = ""
+        self.binance_secret = ""
+        self.initUI()
+        
+    def initUI(self):
+        self.setWindowTitle("Cấu hình API Keys - Binance")
+        self.setModal(True)
+        self.setFixedSize(500, 300)
+        
+        layout = QVBoxLayout()
+        
+        # Thêm label mô tả
+        description_label = QLabel("Vui lòng nhập API Key và Secret Key của Binance:")
+        description_label.setWordWrap(True)
+        description_label.setStyleSheet("color: #666; margin-bottom: 10px; font-weight: bold;")
+        layout.addWidget(description_label)
+        
+        # Thêm thông tin hướng dẫn
+        help_label = QLabel("💡 Lưu ý: API Keys có thể được tạo tại Binance.com > API Management")
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("color: #888; font-size: 10px; margin-bottom: 15px;")
+        layout.addWidget(help_label)
+        
+        # Form layout cho các input
+        form_layout = QFormLayout()
+        
+        # Input cho BINANCE_KEY
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("Nhập BINANCE_KEY")
+        self.key_input.setEchoMode(QLineEdit.Password)
+        # Hiển thị giá trị hiện tại nếu có
+        if BINANCE_KEY:
+            self.key_input.setText(BINANCE_KEY)
+        form_layout.addRow("🔑 BINANCE_KEY:", self.key_input)
+        
+        # Input cho BINANCE_SECRET
+        self.secret_input = QLineEdit()
+        self.secret_input.setPlaceholderText("Nhập BINANCE_SECRET")
+        self.secret_input.setEchoMode(QLineEdit.Password)
+        # Hiển thị giá trị hiện tại nếu có
+        if BINANCE_SECRET:
+            self.secret_input.setText(BINANCE_SECRET)
+        form_layout.addRow("🔐 BINANCE_SECRET:", self.secret_input)
+        
+        layout.addLayout(form_layout)
+        
+        # Thêm checkbox để hiển thị/ẩn mật khẩu
+        self.show_password_checkbox = QCheckBox("👁️ Hiển thị mật khẩu")
+        self.show_password_checkbox.stateChanged.connect(self.toggle_password_visibility)
+        layout.addWidget(self.show_password_checkbox)
+        
+        # Thêm spacer
+        layout.addStretch()
+        
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+        
+    def toggle_password_visibility(self, state):
+        """Chuyển đổi hiển thị/ẩn mật khẩu"""
+        if state == Qt.Checked:
+            self.key_input.setEchoMode(QLineEdit.Normal)
+            self.secret_input.setEchoMode(QLineEdit.Normal)
+        else:
+            self.key_input.setEchoMode(QLineEdit.Password)
+            self.secret_input.setEchoMode(QLineEdit.Password)
+        
+    def accept(self):
+        """Xử lý khi người dùng nhấn OK"""
+        self.binance_key = self.key_input.text().strip()
+        self.binance_secret = self.secret_input.text().strip()
+        
+        # Kiểm tra từng trường và hiển thị thông báo cụ thể
+        missing_fields = []
+        if not self.binance_key:
+            missing_fields.append("BINANCE_KEY")
+        if not self.binance_secret:
+            missing_fields.append("BINANCE_SECRET")
+            
+        if missing_fields:
+            QMessageBox.warning(
+                self, 
+                "Thiếu thông tin", 
+                f"Vui lòng nhập đầy đủ các trường sau:\n• {', '.join(missing_fields)}"
+            )
+            return
+            
+        super().accept()
+        
+    def get_api_keys(self):
+        """Trả về API keys đã nhập"""
+        return self.binance_key, self.binance_secret
         
 class ChromeThread(QThread):
     def run(self):
@@ -116,7 +218,8 @@ class ExcelExportWorker(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.p2p_instance = P2PBinance()
+        # Khởi tạo P2PBinance với API keys đã được cập nhật
+        self.p2p_instance = P2PBinance(api_key=BINANCE_KEY, api_secret=BINANCE_SECRET)
         self.chrome_thread = ChromeThread()
         self.bank_cache = None  # Cache cho danh sách ngân hàng
         self.current_page = 0  # Trang hiện tại của danh sách ngân hàng
@@ -191,12 +294,16 @@ class MainWindow(QMainWindow):
         self.sync_bank_button = QPushButton("Đồng bộ danh sách ngân hàng")
         self.sync_bank_button.clicked.connect(self.sync_bank_list)
 
+        # Thêm nút cấu hình API Keys
+        self.config_api_button = QPushButton("Cấu hình API Keys")
+        self.config_api_button.clicked.connect(self.config_api_keys)
+
         # Thêm các widget vào layout chính
         for widget in [
             self.label_open, self.open_button,
             self.label_login, self.login_button,
             self.label_run_app, self.run_button, self.stop_button,
-            self.clear_log_button, self.sync_bank_button
+            self.clear_log_button, self.sync_bank_button, self.config_api_button
         ]:
             main_layout.addWidget(widget)
 
@@ -303,11 +410,6 @@ class MainWindow(QMainWindow):
         self.realtime_status_label = QLabel("Đã tắt")
         self.realtime_status_label.setStyleSheet("color: red; font-weight: bold;")
         realtime_layout.addWidget(self.realtime_status_label)
-        
-        # Label hiển thị số lượng giao dịch
-        self.transaction_count_label = QLabel("Giao dịch: 0")
-        self.transaction_count_label.setStyleSheet("color: blue; font-weight: bold;")
-        realtime_layout.addWidget(self.transaction_count_label)
         
         # Nút refresh thủ công
         self.manual_refresh_btn = QPushButton("🔄 Làm mới ngay")
@@ -624,6 +726,41 @@ class MainWindow(QMainWindow):
             )
         finally:
             self._syncing_banks = False  # Xóa đánh dấu đồng bộ
+
+    def config_api_keys(self):
+        """Cấu hình API Keys"""
+        try:
+            dialog = ApiKeyDialog(self)
+            if dialog.exec_() == QDialog.Accepted:
+                new_key, new_secret = dialog.get_api_keys()
+                
+                # Cập nhật biến toàn cục
+                global BINANCE_KEY, BINANCE_SECRET
+                BINANCE_KEY = new_key
+                BINANCE_SECRET = new_secret
+                
+                # Cập nhật biến môi trường
+                os.environ["BINANCE_KEY"] = BINANCE_KEY
+                os.environ["BINANCE_SECRET"] = BINANCE_SECRET
+                
+                # Tạo lại P2PBinance instance với API keys mới
+                self.p2p_instance = P2PBinance(api_key=BINANCE_KEY, api_secret=BINANCE_SECRET)
+                
+                self.log("✅ API Keys đã được cập nhật thành công")
+                QMessageBox.information(
+                    self,
+                    "Thành công",
+                    "API Keys đã được cập nhật thành công!"
+                )
+            else:
+                self.log("❌ Hủy cập nhật API Keys")
+        except Exception as e:
+            self.log(f"❌ Lỗi khi cập nhật API Keys: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Lỗi",
+                f"Không thể cập nhật API Keys: {str(e)}"
+            )
 
     def show_transaction_viewer(self):
         """Mở giao diện xem giao dịch"""
@@ -1063,9 +1200,6 @@ class MainWindow(QMainWindow):
             # Lưu vào cache
             self.transaction_cache = transactions
             
-            # Cập nhật label số lượng giao dịch
-            self.transaction_count_label.setText(f"Giao dịch: {len(transactions)}")
-            
             # Chỉ reset trang nếu không phải realtime update
             if not silent:
                 self.transaction_page = 0  # Reset về trang đầu
@@ -1248,6 +1382,8 @@ class MainWindow(QMainWindow):
             row = selected[0].row()
             qr_path = self.trade_table.item(row, 1).data(Qt.UserRole)
             self.view_qr_btn.setEnabled(bool(qr_path))
+            # Tự động hiển thị QR khi chọn dòng
+            self.show_trade_qr()
         else:
             self.view_qr_btn.setEnabled(False)
             self.trade_qr_label.hide()
@@ -1331,6 +1467,43 @@ class MainWindow(QMainWindow):
         if self.last_update_time:
             time_str = self.last_update_time.strftime('%H:%M:%S')
             self.realtime_status_label.setText(f"Đang cập nhật... (Cuối: {time_str})")
+
+# Hàm để lấy API keys từ người dùng
+def get_api_keys_from_user():
+    """Hiển thị dialog để người dùng nhập API keys"""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    
+    dialog = ApiKeyDialog()
+    if dialog.exec_() == QDialog.Accepted:
+        return dialog.get_api_keys()
+    else:
+        return None, None
+
+# Kiểm tra và lấy API keys nếu chưa có
+while not BINANCE_KEY or not BINANCE_SECRET:
+    user_key, user_secret = get_api_keys_from_user()
+    if user_key and user_secret:
+        BINANCE_KEY = user_key
+        BINANCE_SECRET = user_secret
+        # Cập nhật biến môi trường
+        os.environ["BINANCE_KEY"] = BINANCE_KEY
+        os.environ["BINANCE_SECRET"] = BINANCE_SECRET
+        print("✅ API Keys đã được cập nhật thành công!")
+        break
+    else:
+        # Hiển thị dialog hỏi người dùng có muốn thử lại không
+        reply = QMessageBox.question(
+            None, 
+            "Thiếu API Keys", 
+            "Bạn chưa nhập API Keys. Bạn có muốn nhập lại không?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        if reply == QMessageBox.No:
+            print("Ứng dụng sẽ thoát.")
+            sys.exit(1)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

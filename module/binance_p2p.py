@@ -26,11 +26,13 @@ logger = logging.getLogger(__name__)
 
 
 class P2PBinance:
-    def __init__(self, storage_dir: str = "transactions"):
+    def __init__(self, storage_dir: str = "transactions", api_key: str = None, api_secret: str = None):
         """
         Khởi tạo P2PBinance
         Args:
             storage_dir: Thư mục lưu trữ dữ liệu giao dịch
+            api_key: Binance API key (nếu không truyền sẽ sử dụng từ biến môi trường)
+            api_secret: Binance API secret (nếu không truyền sẽ sử dụng từ biến môi trường)
         """
         self._stop_flag = False
         self._running = False
@@ -38,12 +40,16 @@ class P2PBinance:
         self.logger = logging.getLogger("P2P")
         self.storage = TransactionStorage(storage_dir)
 
+        # Sử dụng API keys được truyền vào hoặc từ biến môi trường
+        self.api_key = api_key or BINANCE_KEY
+        self.api_secret = api_secret or BINANCE_SECRET
+
         # Khởi tạo Binance client
         try:
             self.logger.info(
-                f"Initializing Binance client with key: {BINANCE_KEY[:5]}..."
+                f"Initializing Binance client with key: {self.api_key[:5]}..."
             )
-            self.client = Client(BINANCE_KEY, BINANCE_SECRET)
+            self.client = Client(self.api_key, self.api_secret)
             self.logger.info("Binance client initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize Binance client: {e}")
