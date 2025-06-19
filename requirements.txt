@@ -13,3 +13,4 @@ bs4
 openpyxl
 PyQt5
 qasync
+psutil

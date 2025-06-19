@@ -80,10 +80,32 @@ def get_nganhang_api():
         logger.error(f"Lỗi không xác định: {e}")
         return None
 
+def normalize_text(text):
+    if not text:
+        return ""
+    # Loại bỏ dấu tiếng Việt, chuyển về lower, loại bỏ khoảng trắng
+    text = unicodedata.normalize('NFKD', text)
+    text = ''.join([c for c in text if not unicodedata.combining(c)])
+    return text.lower().replace(" ", "")
+
 def get_nganhang_id(name_bank: str) -> str:
     try:
         with open(bank_dict_path, 'r', encoding="utf-8") as f:
             banks = json.load(f)
+            name_bank_norm = normalize_text(name_bank)
+            # 1. So sánh chính xác với nhiều trường
+            for key, info in banks.items():
+                candidates = [
+                    key,
+                    info.get("name", ""),
+                    info.get("code", ""),
+                    info.get("short_name", "")
+                ]
+                for candidate in candidates:
+                    if normalize_text(candidate) == name_bank_norm:
+                        logger.info(f"Match found: {candidate} for input: {name_bank}")
+                        return info.get("bin")
+            # 2. Nếu không tìm thấy, dùng so sánh gần đúng (find_best_match với key)
             list_banks = list(banks.keys())
             result = find_best_match(name_bank, list_banks)
             if result:
@@ -105,18 +127,6 @@ def get_nganhang_id(name_bank: str) -> str:
     except Exception as e:  
         logger.error(f"Unexpected error: {e}")
         return None
-
-def normalize_text(text):
-    try:
-        text = text.lower()
-        text = unicodedata.normalize('NFD', text)
-        text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-        text = re.sub(r'[^a-z0-9\s]', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
-    except Exception as e:
-        logger.error(f"Error normalizing text: {e}")
-        return text
 
 def find_best_match(query, choices):
     try:

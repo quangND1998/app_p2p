@@ -1338,6 +1338,10 @@ class MainWindow(QMainWindow):
         if order_status != "Tất cả":
             filtered = [t for t in filtered if t.get('order_status', '') == order_status]
         
+        # Sắp xếp theo thời gian giảm dần (mới nhất lên đầu)
+        filtered.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+        self.log(f"Sau khi sắp xếp: {len(filtered)} giao dịch")
+        
         return filtered
 
     def filter_transactions(self):

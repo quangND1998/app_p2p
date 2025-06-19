@@ -60,6 +60,11 @@ class P2PBinance:
         self.logger.info(f"🔍 Bắt đầu xử lý BUY order: {order_number}")
         
         try:
+            existing_tx = self.storage.get_transaction_by_order(order_number)
+            if existing_tx and existing_tx.get("qr_path"):
+                # self.logger.info(f"✅ Đã có QR cho order {order_number}, bỏ qua tạo mới.")
+                self.current_transaction = existing_tx
+                return
             # Trích xuất thông tin từ order
             self.logger.info(f"📋 Đang trích xuất thông tin cho order: {order_number}")
             infor_seller = extract_order_info(order_number)
@@ -157,8 +162,14 @@ class P2PBinance:
     def handle_sell_order(self, order_number, fiat_amount, message):
         """Xử lý đơn hàng bán"""
         self.logger.info(f"🔍 Bắt đầu xử lý SELL order: {order_number}")
-        
         try:
+            # Kiểm tra nếu order_number đã tồn tại và có qr_path thì không tạo lại
+            existing_tx = self.storage.get_transaction_by_order(order_number)
+            if existing_tx and existing_tx.get("qr_path"):
+                # self.logger.info(f"✅ Đã có QR cho order {order_number}, bỏ qua tạo mới.")
+                self.current_transaction = existing_tx
+                return
+            
             qr_image = generate_vietqr(
                 addInfo=order_number, amount=fiat_amount, template="rc9Vk60"
             )
@@ -184,7 +195,6 @@ class P2PBinance:
             self.current_transaction["qr_path"] = qr_path
             
             self.logger.info(f"🎉 Hoàn thành xử lý SELL order: {order_number}")
-            
         except Exception as e:
             self.logger.error(f"💥 Lỗi khi xử lý SELL order {order_number}: {str(e)}", exc_info=True)
 
@@ -266,7 +276,8 @@ class P2PBinance:
                             #     self.logger.info(f"   {key}: {value}")
 
                         if previous_status is None or previous_status != order_status:
-                            self.logger.info(f"🔄 Status thay đổi cho order {order_number}: {previous_status} -> {order_status}")
+                            if order_status == 'TRADING':
+                                self.logger.info(f"🔄 Status thay đổi cho order {order_number}: {previous_status} -> {order_status}")
                             
                             # Log toàn bộ thông tin order khi có thay đổi status
                             # self.logger.info(f"📋 Toàn bộ thông tin order {order_number} (Status: {order_status}):")
@@ -287,7 +298,7 @@ class P2PBinance:
                             self.storage.update_used_orders(order_number, order_status)
                             self._send_notification(message)
 
-                            if order_status:
+                            if order_status == 'TRADING':
                                 self.logger.info(f"🎯 Bắt đầu xử lý order TRADING: {order_number} (Type: {trade_type})")
                                 if trade_type == "BUY":
                                     self.logger.info(f"🛒 Gọi handle_buy_order cho order: {order_number}")
@@ -301,8 +312,8 @@ class P2PBinance:
                                     )
                                 else:
                                     self.logger.warning(f"⚠️ Trade type không xác định: {trade_type}")
-                            else:
-                                self.logger.info(f"📝 Order {order_number} có status {order_status} (không phải TRADING)")
+                            # else:
+                                # self.logger.info(f"📝 Order {order_number} có status {order_status} (không phải TRADING)")
 
                 time.sleep(1)
 
